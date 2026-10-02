@@ -66,9 +66,9 @@ export function createToolDiagnosticHandlers(deps: HandlerDeps) {
         "gen_ai.tool.name": event.toolName,
         "forge.loop.level": event.level,
         "forge.loop.action": event.action,
-        "forge.loop.message": event.message,
         "forge.loop.detector": event.detector,
       };
+      if (deps.getResolved()?.captureContent) attrs["forge.loop.message"] = event.message;
       if (Number.isFinite(event.count) && event.count >= 0) {
         attrs["forge.loop.count"] = Math.trunc(event.count);
       }

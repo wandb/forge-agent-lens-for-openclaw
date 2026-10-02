@@ -74,7 +74,7 @@ export async function resolveConfig(raw: RawConfig, ctx: ResolveContext): Promis
     agentName: raw.agentName || DEFAULT_AGENT_NAME,
     agentVersion: raw.agentVersion || PACKAGE_VERSION,
     agentDescription: raw.agentDescription,
-    captureContent: raw.captureContent !== false,
+    captureContent: raw.captureContent === true,
     flushIntervalMs,
     apiKey: apiKey?.value,
     authSource: apiKey?.source,

@@ -60,8 +60,8 @@
       },
       "captureContent": {
         "type": "boolean",
-        "default": true,
-        "description": "Conversation content captured into spans. Defaults to true so traces are useful out of the box. Set to false for a hard off (compliance/retention policy). Captured content is NOT redacted by the plugin; operators are expected to scrub upstream if needed."
+        "default": false,
+        "description": "Conversation content captured into spans. Defaults to false; set to true to send prompts, replies, and tool inputs and results to W&B. Captured content is not redacted by the plugin."
       },
       "flushIntervalMs": {
         "type": "integer",
@@ -76,7 +76,7 @@
     "project": { "label": "W&B Project" },
     "captureContent": {
       "label": "Capture conversation content",
-      "help": "On by default; empty traces aren't useful. Set to false when compliance or retention policy requires it. Content is not redacted by the plugin; scrub upstream if needed."
+      "help": "Off by default. Enable only if sending unredacted prompts, replies, and tool content to W&B is appropriate for this project."
     }
   }
 }

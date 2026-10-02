@@ -199,7 +199,7 @@ describe("turn lifecycle", () => {
 
 describe("llm two-signal close", () => {
   it("buffers llm_input before model_call_started, promotes it, and closes the chat span with model + usage", async () => {
-    const { dispatch, hookState, finish } = await setupTurn();
+    const { dispatch, hookState, finish } = await setupTurn({ captureContent: true });
     dispatch.hook("llm_input", { runId: "r", prompt: "hi", systemPrompt: "be helpful" });
     expect(hookState.pendingLlmInputByRun.has("r")).toBe(true);
     dispatch.hook("model_call_started", { runId: "r", callId: "c-1" });
@@ -240,14 +240,15 @@ describe("llm two-signal close", () => {
     );
   });
 
-  it("does not capture or export LLM input when captureContent=false", async () => {
-    const { dispatch, hookState, finish } = await setupTurn({ captureContent: false });
+  it("does not export LLM input or output by default", async () => {
+    const { dispatch, hookState, finish } = await setupTurn();
     dispatch.hook("llm_input", { runId: "r", prompt: "hi", systemPrompt: "secret" });
     expect(hookState.systemPromptByRun.has("r")).toBe(false);
     expect(hookState.pendingLlmInputByRun.has("r")).toBe(false);
     dispatch.hook("model_call_started", { runId: "r", callId: "c-1" });
     expect(hookState.llmInputs.has("c-1")).toBe(false);
     modelCallStarted(dispatch, { callId: "c-1", spanId: "sp2" });
+    assistantMessage(dispatch, { sessionKey: "s", text: "private reply" });
     modelCallCompleted(dispatch, { callId: "c-1", spanId: "sp2" });
     runCompleted(dispatch);
     await finish();
@@ -259,6 +260,7 @@ describe("llm two-signal close", () => {
     expect(chat.attributes["gen_ai.system_instructions"]).toBeUndefined();
     expect(turn.attributes["gen_ai.system_instructions"]).toBeUndefined();
     expect(chat.attributes["gen_ai.input.messages"]).toBeUndefined();
+    expect(chat.attributes["gen_ai.output.messages"]).toBeUndefined();
   });
 
   it("marks the chat span ERROR on model.call.error", async () => {
@@ -345,7 +347,7 @@ describe("usage: input_tokens is the total prompt", () => {
 
 describe("tool lifecycle", () => {
   it("opens execute_tool spans (stamping captured args/result) and marks error + blocked as ERROR", async () => {
-    const { dispatch, finish } = await setupTurn();
+    const { dispatch, finish } = await setupTurn({ captureContent: true });
     // completed, with captured args + result
     dispatch.hook("before_tool_call", { runId: "r", toolCallId: "tc-1", toolName: "search", params: { q: "weave" } });
     toolStarted(dispatch, { toolCallId: "tc-1", spanId: "tc1" });
@@ -376,7 +378,7 @@ describe("tool lifecycle", () => {
   });
 
   it("attaches the tool result when after_tool_call lands after tool.execution.completed (real OpenClaw order)", async () => {
-    const { dispatch, finish } = await setupTurn();
+    const { dispatch, finish } = await setupTurn({ captureContent: true });
     dispatch.hook("before_tool_call", { runId: "r", toolCallId: "tc-ord", toolName: "search", params: { q: "weave" } });
     toolStarted(dispatch, { toolCallId: "tc-ord", spanId: "tcord" });
     // Real runtime order: OpenClaw emits the terminal diagnostic synchronously
@@ -393,8 +395,8 @@ describe("tool lifecycle", () => {
     expect(span.status.code).not.toBe(2); // completed tool is not an error
   });
 
-  it("does not stamp gen_ai.tool.call.* content when captureContent=false", async () => {
-    const { dispatch, finish } = await setupTurn({ captureContent: false });
+  it("does not stamp gen_ai.tool.call.* content by default", async () => {
+    const { dispatch, finish } = await setupTurn();
     dispatch.hook("before_tool_call", { runId: "r", toolCallId: "tc-nc", toolName: "search", params: { q: "secret" } });
     toolStarted(dispatch, { toolCallId: "tc-nc", spanId: "tcnc" });
     dispatch.hook("after_tool_call", { runId: "r", toolCallId: "tc-nc", result: { secret: "shhh" } });
@@ -408,7 +410,7 @@ describe("tool lifecycle", () => {
   });
 
   it("records a tool.loop event on the Turn (resolved via sessionKey, which the event carries instead of runId)", async () => {
-    const { dispatch, finish } = await setupTurn();
+    const { dispatch, finish } = await setupTurn({ captureContent: true });
     dispatch.diagnostic({
       type: "tool.loop",
       ts: 1200,
@@ -434,6 +436,35 @@ describe("tool lifecycle", () => {
     expect(loop.attributes["forge.loop.count"]).toBe(3);
     expect(loop.attributes["forge.loop.message"]).toBe("repeated tool call");
   });
+
+  it("keeps free-text event details out of traces by default", async () => {
+    const { dispatch, finish } = await setupTurn();
+    dispatch.hook("agent_end", { runId: "r", success: false, error: "private error" });
+    dispatch.hook("message_received", { runId: "r", from: "user@example.com", content: "private message" }, { channelId: "private-channel" });
+    dispatch.diagnostic({
+      type: "tool.loop", ts: 1200, sessionKey: "s", toolName: "search",
+      level: "warning", action: "warn", detector: "generic_repeat", count: 3,
+      message: "private loop detail",
+    });
+    dispatch.hook("subagent_spawned", { runId: "sub-r", agentId: "researcher", label: "private label", mode: "run" }, { runId: "r" });
+    dispatch.hook("subagent_ended", { runId: "sub-r", outcome: "ok" });
+    runCompleted(dispatch);
+    await finish();
+
+    const turn = exporter.getFinishedSpans().find(s => s.attributes["gen_ai.operation.name"] === "invoke_agent" && s.events.some(e => e.name === "message_received"));
+    assert(turn);
+    expect(turn.attributes["forge.agent.error"]).toBeUndefined();
+    expect(turn.attributes["forge.agent.success"]).toBe(false);
+    const message = turn.events.find(e => e.name === "message_received");
+    const loop = turn.events.find(e => e.name === "tool.loop");
+    const subagent = turn.events.find(e => e.name === "subagent_spawned");
+    expect(message?.attributes?.["forge.message.from"]).toBeUndefined();
+    expect(message?.attributes?.["forge.message.channel"]).toBeUndefined();
+    expect(message?.attributes?.["forge.message.content"]).toBeUndefined();
+    expect(loop?.attributes?.["forge.loop.message"]).toBeUndefined();
+    expect(loop?.attributes?.["forge.loop.count"]).toBe(3);
+    expect(subagent?.attributes?.["gen_ai.agent.description"]).toBeUndefined();
+  });
 });
 describe("side-channel attrs on Turn", () => {
   it("accumulates cost and stamps usage totals from model.usage", async () => {
@@ -455,7 +486,7 @@ describe("side-channel attrs on Turn", () => {
   });
 
   it("records run.attempt / message_received span events and context.assembled attrs", async () => {
-    const { dispatch, finish } = await setupTurn();
+    const { dispatch, finish } = await setupTurn({ captureContent: true });
     dispatch.diagnostic({ type: "context.assembled", ts: 2, runId: "r", contextTokenBudget: 200000, messageCount: 12, historyTextChars: 5000, promptChars: 200, trace: TRACE });
     dispatch.diagnostic({ type: "run.attempt", ts: 3, runId: "r", attempt: 2, trace: TRACE });
     dispatch.hook("message_received", { runId: "r", from: "user@example.com", content: "hello" }, { channelId: "telegram" });
@@ -491,7 +522,7 @@ describe("side-channel attrs on Turn", () => {
 
 describe("concurrent runs", () => {
   it("two interleaved runs each get their own Turn / LLM / Tool spans without colliding on the SDK's ambient state", async () => {
-    const { plugin, dispatch, finish } = await bootPlugin();
+    const { plugin, dispatch, finish } = await bootPlugin({ captureContent: true });
 
     // Interleave events for two concurrent runs. Each `runIsolated()`
     // boundary in the handlers must let both runs' SDK constructions
@@ -537,7 +568,7 @@ describe("concurrent runs", () => {
 
 describe("hot-reload / lifecycle", () => {
   it("start() called twice without an intervening stop() drops accumulated per-run state from the previous start", async () => {
-    const { plugin, hookState, dispatch } = await bootPlugin();
+    const { plugin, hookState, dispatch } = await bootPlugin({ captureContent: true });
     // Open some state under the first start().
     runStarted(dispatch, { runId: "r-1" });
     dispatch.hook("session_start", { sessionKey: "s" });
@@ -575,7 +606,7 @@ describe("subagent and compaction", () => {
       ?.events.find(e => e.name === "context_compacted");
 
   it("opens a SubAgent under the requester's Turn with spawned-event attrs; non-ok ends ERROR", async () => {
-    const { dispatch, finish } = await setupTurn();
+    const { dispatch, finish } = await setupTurn({ captureContent: true });
     dispatch.hook("subagent_spawned", { runId: "sub-r", agentId: "researcher", label: "search-agent", childSessionKey: "sub-s", mode: "run" }, { runId: "r" });
     dispatch.hook("subagent_ended", { runId: "sub-r", outcome: "ok" });
     dispatch.hook("subagent_spawned", { runId: "sub-r2", agentId: "broken", childSessionKey: "sub-s2", mode: "run" }, { runId: "r" });

@@ -18,7 +18,7 @@ export function createTurnHookHandlers(deps: HandlerDeps): {
       const attrs: Record<string, string | number | boolean> = {
         "forge.agent.success": event.success,
       };
-      if (event.error) attrs["forge.agent.error"] = event.error;
+      if (event.error && deps.getResolved()?.captureContent) attrs["forge.agent.error"] = event.error;
       if (event.durationMs !== undefined && Number.isFinite(event.durationMs)) {
         attrs["forge.agent.duration_ms"] = Math.trunc(event.durationMs);
       }
@@ -32,12 +32,11 @@ export function createTurnHookHandlers(deps: HandlerDeps): {
       if (!event.runId) return;
       const turn = deps.registries.turns.get(event.runId);
       if (!turn) return;
-      const attrs: Record<string, string | number | boolean> = {
-        "forge.message.from": event.from,
-        "forge.message.channel": ctx.channelId,
-      };
+      const attrs: Record<string, string | number | boolean> = {};
       const resolved = deps.getResolved();
       if (resolved?.captureContent) {
+        attrs["forge.message.from"] = event.from;
+        attrs["forge.message.channel"] = ctx.channelId;
         attrs["forge.message.content"] = event.content;
       }
       turn.addEvent("message_received", attrs);

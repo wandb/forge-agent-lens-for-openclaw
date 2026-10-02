@@ -25,7 +25,9 @@ export function createSubagentHookHandlers(deps: HandlerDeps): {
         "gen_ai.agent.id": event.agentId,
         "forge.subagent.mode": event.mode,
       };
-      if (event.label) evAttrs["gen_ai.agent.description"] = event.label;
+      if (event.label && deps.getResolved()?.captureContent) {
+        evAttrs["gen_ai.agent.description"] = event.label;
+      }
       if (event.childSessionKey) evAttrs["gen_ai.conversation.id"] = event.childSessionKey;
       turn.addEvent("subagent_spawned", evAttrs);
       deps.registries.subagents.set(event.runId, sub);

@@ -62,10 +62,11 @@ describe("resolveConfig", () => {
 
   it("applies field defaults (captureContent, agentVersion, flush clamp)", async () => {
     const def = await resolveConfig(base, ctx());
-    expect(def.captureContent).toBe(true);
+    expect(def.captureContent).toBe(false);
     expect(def.agentVersion).toMatch(/^\d+\.\d+\.\d+/);
     expect(def.agentVersion).not.toMatch(/\+/);
 
+    expect((await resolveConfig({ ...base, captureContent: true }, ctx())).captureContent).toBe(true);
     expect((await resolveConfig({ ...base, captureContent: false }, ctx())).captureContent).toBe(false);
 
     expect((await resolveConfig({ ...base, flushIntervalMs: 200 }, ctx())).flushIntervalMs).toBe(1000);

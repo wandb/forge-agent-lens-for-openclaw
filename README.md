@@ -9,10 +9,10 @@
 OpenClaw plugin for tracing agent runs, model calls, tool calls, tokens, and
 costs in CoreWeave Forge.
 
-> [!WARNING]
-> `captureContent` defaults to `true`. Prompts, replies, and tool inputs and
-> results are sent unredacted to W&B. Set it to `false` to record only trace
-> structure, tokens, and costs.
+`captureContent` defaults to `false`. Traces still record run structure, tokens,
+and costs. Set it to `true` only when sending prompts, replies, and tool inputs
+and results to W&B is appropriate for your project; the plugin does not redact
+that content.
 
 ## Tracing SDK
 
@@ -72,7 +72,6 @@ Add the plugin to `~/.openclaw/openclaw.json`:
       forge: {
         enabled: true,
         config: { entity: "your-team", project: "your-project" },
-        hooks: { allowConversationAccess: true },
       },
     },
   },
@@ -91,9 +90,12 @@ Run `/forge status` in a chat. When it reports `running`, view traces at:
 https://wandb.ai/<entity>/<project>/weave/agents
 ```
 
-`hooks.allowConversationAccess: true` allows prompts, replies, and per-call
-token counts. Without it, trace structure, tool calls, and run totals still
-work. `diagnostics.enabled: false` disables tracing.
+To export prompts and replies, set `captureContent: true` and
+`hooks.allowConversationAccess: true` on the `forge` entry. This also sends tool
+inputs and results unredacted. Enabling conversation access alone can provide
+per-call token counts without exporting message content. Without it, trace
+structure, tool calls, and run totals still work. `diagnostics.enabled: false`
+disables tracing.
 
 See the [full setup guide](https://docs.wandb.ai/weave/guides/integrations/agents/openclaw-harness)
 and [ClawHub listing](https://clawhub.ai/coreweave/plugins/forge-agent-lens-for-openclaw).
@@ -126,21 +128,22 @@ default.
           agentVersion: "v1.0",
           agentDescription: "What my agent does.",
 
-          // On by default. Set to false to stop recording the actual message
-          // text (for example, to meet a privacy or retention policy). The
-          // plugin records text as-is and does not hide sensitive values, so
-          // remove them beforehand if you need to.
-          captureContent: true,
+          // Off by default. Set to true to export prompts, replies, and tool
+          // content. The plugin does not redact these values.
+          captureContent: false,
 
           // How often (in milliseconds) traces are sent.
           flushIntervalMs: 1000,
         },
-        hooks: { allowConversationAccess: true },
       },
     },
   },
 }
 ```
+
+If you previously relied on the default to export message or tool content,
+set `captureContent: true` explicitly when upgrading. Existing explicit
+`captureContent: true` settings continue to work.
 
 Environment refs work without extra setup. File and exec refs need a matching
 `secrets.providers` entry; see [OpenClaw secrets management](https://docs.openclaw.ai/gateway/secrets).

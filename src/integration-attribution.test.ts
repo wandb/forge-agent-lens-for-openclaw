@@ -84,7 +84,7 @@ describe("integration attribution", () => {
   });
 
   it("emits only forge.* custom keys; weave.compaction.* is the one backend-read survivor", async () => {
-    const { dispatch, finish } = await bootPlugin({ agentName: "test-agent", agentDescription: "demo" });
+    const { dispatch, finish } = await bootPlugin({ agentName: "test-agent", agentDescription: "demo", captureContent: true });
 
     // Drive every emitter once so a missed rename surfaces as a weave.* key.
     dispatch.hook("session_start", { sessionKey: "s-1" });
