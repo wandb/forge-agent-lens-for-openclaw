@@ -1,6 +1,6 @@
 {
   "name": "@coreweave/forge-agent-lens-for-openclaw",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "OpenClaw plugin that traces agent sessions to CoreWeave Forge for observability and debugging.",
   "license": "Apache-2.0",
   "type": "module",

@@ -1,7 +1,7 @@
 {
   "id": "forge",
   "name": "CoreWeave Forge",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Track OpenClaw agent sessions in CoreWeave Forge for observability and debugging.",
   "activation": {
     "onStartup": true

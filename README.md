@@ -16,7 +16,8 @@ costs in CoreWeave Forge.
 
 ## Tracing SDK
 
-Tracing uses `@coreweave/forge-sdk/agentlens/tracing`. Every turn, chat, tool,
+Tracing uses `@coreweave/forge-sdk/agentlens/tracing`, pinned to the
+`0.1.0-beta.0` prerelease. Every turn, chat, tool,
 and subagent span carries
 `forge.integration.name = forge-agent-lens-for-openclaw` and
 `forge.integration.version`. The OTLP resource reports
@@ -44,10 +45,6 @@ is now `forge.outcome`. Agent version, ID, and description use the
 and environment names and the `/weave/agents` dashboard route are unchanged.
 
 ## Setup
-
-The commands below target the renamed release; this local change does not
-publish npm or ClawHub packages. Development uses the published
-`@coreweave/forge-sdk@0.1.0-beta.0` prerelease, pinned exactly for reproducibility.
 
 Install the plugin:
 
